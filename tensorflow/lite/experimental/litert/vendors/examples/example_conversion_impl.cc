@@ -28,6 +28,7 @@ TensorConverter<ExampleTensor> MakeTensorConverter(
     TensorAllocator<ExampleTensor> alloc) {
   return [alloc](const Tensor& litert_tensor) -> Expected<ExampleTensor*> {
     auto& tensor = *alloc();
+    tensor.name = litert_tensor.Name();
 
     auto litert_type = litert_tensor.RankedTensorType();
     if (!litert_type) {
@@ -51,6 +52,13 @@ TensorConverter<ExampleTensor> MakeTensorConverter(
 
     return &tensor;
   };
+}
+
+ExampleTypes::Legalizations MakeAllLegalizations() {
+  ExampleTypes::Legalizations legalizations;
+  legalizations.push_back(ExampleLegalizeMul::Make());
+  legalizations.push_back(ExampleLegalizeAdd::Make());
+  return legalizations;
 }
 
 }  // namespace litert::example
