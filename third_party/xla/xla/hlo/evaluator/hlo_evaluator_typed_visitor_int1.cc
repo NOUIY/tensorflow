@@ -1,4 +1,4 @@
-/* Copyright 2024 The OpenXLA Authors.
+/* Copyright 2018 The OpenXLA Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,11 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include <cstdint>
+
 #include "xla/hlo/evaluator/hlo_evaluator.h"
 #include "xla/hlo/evaluator/hlo_evaluator_typed_visitor.h"
-#include "tsl/platform/ml_dtypes.h"
+#include "xla/types.h"
 
 namespace xla {
-template class HloEvaluatorTypedVisitor<tsl::float4_e2m1fn, float>;
-template class HloEvaluatorTypedVisitor<tsl::float8_e8m0fnu, float>;
+template class HloEvaluatorTypedVisitor<s1, int64_t>;
+template class HloEvaluatorTypedVisitor<u1, uint64_t>;
 }  // namespace xla
