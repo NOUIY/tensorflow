@@ -35,7 +35,6 @@
 #include "tensorflow/lite/experimental/litert/c/litert_logging.h"
 #include "tensorflow/lite/experimental/litert/c/litert_model.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_buffer_ref.h"
-#include "tensorflow/lite/experimental/litert/cc/litert_detail.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_expected.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_macros.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_model.h"
@@ -189,12 +188,12 @@ void SortPlugins(std::vector<CompilerPlugin>& compiler_plugins) {
               auto x_supported_hardware = x.SupportedHardware();
               auto y_supported_hardware = y.SupportedHardware();
               if (x_supported_hardware && y_supported_hardware) {
-                bool x_npu = (*x_supported_hardware & kLiteRtHwAccelatorNpu);
-                bool x_gpu = (*x_supported_hardware & kLiteRtHwAccelatorGpu);
-                bool x_cpu = (*x_supported_hardware & kLiteRtHwAccelatorCpu);
-                bool y_npu = (*y_supported_hardware & kLiteRtHwAccelatorNpu);
-                bool y_gpu = (*y_supported_hardware & kLiteRtHwAccelatorGpu);
-                bool y_cpu = (*y_supported_hardware & kLiteRtHwAccelatorCpu);
+                bool x_npu = (*x_supported_hardware & kLiteRtHwAcceleratorNpu);
+                bool x_gpu = (*x_supported_hardware & kLiteRtHwAcceleratorGpu);
+                bool x_cpu = (*x_supported_hardware & kLiteRtHwAcceleratorCpu);
+                bool y_npu = (*y_supported_hardware & kLiteRtHwAcceleratorNpu);
+                bool y_gpu = (*y_supported_hardware & kLiteRtHwAcceleratorGpu);
+                bool y_cpu = (*y_supported_hardware & kLiteRtHwAcceleratorCpu);
                 int x_score = 100 * x_npu + 10 * x_gpu + x_cpu;
                 int y_score = 100 * y_npu + 10 * y_gpu + y_cpu;
                 return x_score < y_score;
@@ -435,7 +434,7 @@ Expected<void> ApplyPlugin(CompilerPlugin& compiler_plugin, LiteRtModelT& model,
     OwningBufferRef<uint8_t> owned_byte_code(byte_code->Data(),
                                              byte_code->Size());
     const auto buf_id =
-        model.RegisterExternalBuffer(std::move(owned_byte_code));
+        model.Buffers()->RegisterOwnedBuffer(std::move(owned_byte_code));
 
     byte_code_idx_to_buf_id[i] = buf_id;
   }
@@ -451,7 +450,7 @@ Expected<void> ApplyPlugin(CompilerPlugin& compiler_plugin, LiteRtModelT& model,
     auto [name, byte_code_idx] = *call_info;
     const auto buf_id = byte_code_idx_to_buf_id[byte_code_idx];
 
-    model.AttachExternalBufferToOp(dispatch_op, buf_id, std::string(name));
+    model.AttachAssetToOp(dispatch_op, buf_id, std::string(name));
   }
 
   // Tag the model with make/model from the plugin.
@@ -471,15 +470,11 @@ Expected<void> ApplyPlugin(CompilerPlugin& compiler_plugin, LiteRtModelT& model,
 }
 
 Expected<ApplyPluginsResult> ApplyPlugins(
-    LiteRtModel model, LiteRtHwAcceleratorSet selected_hw_accelerators) {
-  auto environment = litert::internal::Environment::Instance();
-  if (!environment) {
-    return environment.Error();
-  }
-
+    LiteRtEnvironment environment, LiteRtModel model,
+    LiteRtHwAcceleratorSet selected_hw_accelerators) {
   std::string compiler_plugin_lib_path = ".";
   auto option =
-      (*environment)->GetOption(kLiteRtEnvOptionTagCompilerPluginLibraryPath);
+      environment->GetOption(kLiteRtEnvOptionTagCompilerPluginLibraryPath);
   if (option.has_value() && option->type == kLiteRtAnyTypeString) {
     compiler_plugin_lib_path = option->str_value;
   }

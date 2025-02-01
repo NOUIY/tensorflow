@@ -27,6 +27,7 @@
 #include "absl/types/span.h"
 #include "tensorflow/lite/experimental/litert/c/litert_common.h"
 #include "tensorflow/lite/experimental/litert/c/litert_compiled_model_options.h"
+#include "tensorflow/lite/experimental/litert/c/litert_environment.h"
 #include "tensorflow/lite/experimental/litert/c/litert_model.h"
 #include "tensorflow/lite/experimental/litert/c/litert_tensor_buffer.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_expected.h"
@@ -141,11 +142,15 @@ TEST(CompiledModelTest, Basic) {
   ASSERT_EQ(LiteRtCreateCompilationOptions(&compilation_options),
             kLiteRtStatusOk);
   ASSERT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                compilation_options, kLiteRtHwAccelatorCpu),
+                compilation_options, kLiteRtHwAcceleratorCpu),
             kLiteRtStatusOk);
 
+  auto env = LiteRtEnvironmentT::CreateWithOptions({});
+  ASSERT_TRUE(env);
+  auto env_ptr = env->release();
+
   auto res_compiled_model = LiteRtCompiledModelT::Create(
-      model, LiteRtCompiledModelT::OptionsPtr(compilation_options));
+      env_ptr, model, LiteRtCompiledModelT::OptionsPtr(compilation_options));
   ASSERT_TRUE(res_compiled_model) << "Failed to initialize CompiledModel: "
                                   << res_compiled_model.Error().Message();
   auto& compiled_model = **res_compiled_model;
@@ -212,12 +217,16 @@ TEST(CompiledModelTest, Basic) {
   }
 
   LiteRtDestroyModel(model);
+  LiteRtDestroyEnvironment(env_ptr);
 }
 
 TEST(CompiledModelTest, UseAhwbBuffer) {
 #if !defined(__ANDROID__)
   GTEST_SKIP() << "The rest of this test is specific to Android devices";
 #endif
+  auto env = LiteRtEnvironmentT::CreateWithOptions({});
+  ASSERT_TRUE(env);
+  auto env_ptr = env->release();
   auto path = testing::GetTestFilePath(kModelFileName);
   LiteRtModel model;
   ASSERT_EQ(LiteRtCreateModelFromFile(path.c_str(), &model), kLiteRtStatusOk);
@@ -226,11 +235,11 @@ TEST(CompiledModelTest, UseAhwbBuffer) {
   ASSERT_EQ(LiteRtCreateCompilationOptions(&compilation_options),
             kLiteRtStatusOk);
   ASSERT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                compilation_options, kLiteRtHwAccelatorCpu),
+                compilation_options, kLiteRtHwAcceleratorCpu),
             kLiteRtStatusOk);
 
   auto res_compiled_model = LiteRtCompiledModelT::Create(
-      model, LiteRtCompiledModelT::OptionsPtr(compilation_options));
+      env_ptr, model, LiteRtCompiledModelT::OptionsPtr(compilation_options));
   ASSERT_TRUE(res_compiled_model) << "Failed to initialize CompiledModel";
   auto& compiled_model = **res_compiled_model;
 
@@ -299,11 +308,12 @@ TEST(CompiledModelTest, UseAhwbBuffer) {
   }
 
   LiteRtDestroyModel(model);
+  LiteRtDestroyEnvironment(env_ptr);
 }
 
 TEST(CompiledModelTest, UseOpenCLBuffer) {
   // MSAN does not support GPU tests.
-#if defined(MEMORY_SANITIZER)
+#if defined(MEMORY_SANITIZER) || defined(THREAD_SANITIZER)
   GTEST_SKIP() << "GPU tests are not supported In msan";
 #endif
 
@@ -314,8 +324,10 @@ TEST(CompiledModelTest, UseOpenCLBuffer) {
   auto path = testing::GetTestFilePath(kModelFileName);
   LiteRtModel model;
   ASSERT_EQ(LiteRtCreateModelFromFile(path.c_str(), &model), kLiteRtStatusOk);
-
-  auto res_compiled_model = LiteRtCompiledModelT::Create(model);
+  auto env = LiteRtEnvironmentT::CreateWithOptions({});
+  ASSERT_TRUE(env);
+  auto env_ptr = env->release();
+  auto res_compiled_model = LiteRtCompiledModelT::Create(env_ptr, model);
   ASSERT_TRUE(res_compiled_model) << "Failed to initialize CompiledModel";
   auto& compiled_model = **res_compiled_model;
 
@@ -385,6 +397,7 @@ TEST(CompiledModelTest, UseOpenCLBuffer) {
   }
 
   LiteRtDestroyModel(model);
+  LiteRtDestroyEnvironment(env_ptr);
 }
 }  // namespace
 }  // namespace litert

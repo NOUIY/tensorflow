@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "tensorflow/lite/experimental/litert/c/litert_environment.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_event.h"
 
 #if defined(__ANDROID__)
@@ -42,6 +43,7 @@
 #include "tensorflow/lite/experimental/litert/c/litert_tensor_buffer.h"
 #include "tensorflow/lite/experimental/litert/c/litert_tensor_buffer_requirements.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_buffer_ref.h"
+#include "tensorflow/lite/experimental/litert/cc/litert_dispatch_delegate.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_expected.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_tensor_buffer.h"
 #include "tensorflow/lite/experimental/litert/cc/litert_tensor_buffer_requirements.h"
@@ -63,9 +65,7 @@ using litert::Unexpected;
 using litert::internal::ExternalLiteRtBufferContext;
 
 Expected<void> LiteRtCompiledModelT::Initialize() {
-  // Use BuiltinOpResolverWithoutDefaultDelegates to avoid auto applying of
-  // Xnnpack delegate with GetSignatureRunner() API.
-  tflite::ops::builtin::BuiltinOpResolverWithoutDefaultDelegates resolver;
+  tflite::ops::builtin::BuiltinOpResolver resolver;
   tflite::InterpreterBuilder(*fb_model_, resolver)(&interp_);
   if (interp_ == nullptr) {
     return Unexpected(kLiteRtStatusErrorRuntimeFailure);
@@ -87,20 +87,21 @@ Expected<void> LiteRtCompiledModelT::Initialize() {
 }
 
 Expected<LiteRtCompiledModelT::Ptr> LiteRtCompiledModelT::Create(
-    LiteRtModel model, OptionsPtr compilation_options) {
+    LiteRtEnvironmentT* env, LiteRtModel model,
+    OptionsPtr compilation_options) {
   auto compiled_model = std::make_unique<LiteRtCompiledModelT>();
 
   std::optional<OwningBufferRef<uint8_t>> new_flatbuffer;
-  LiteRtHwAcceleratorSet hardware_accelerators = kLiteRtHwAccelatorNone;
+  LiteRtHwAcceleratorSet hardware_accelerators = kLiteRtHwAcceleratorNone;
   if (compilation_options) {
     LiteRtGetCompilationOptionsHardwareAccelerators(compilation_options.get(),
                                                     &hardware_accelerators);
   }
   // TODO: b/379317134 - Support other delegates with compilation options.
-  if (hardware_accelerators != kLiteRtHwAccelatorNone) {
+  if (hardware_accelerators != kLiteRtHwAcceleratorNone) {
     LITERT_LOG(LITERT_INFO, "Applying compiler plugins...");
     if (auto result =
-            litert::internal::ApplyPlugins(model, hardware_accelerators);
+            litert::internal::ApplyPlugins(env, model, hardware_accelerators);
         !result) {
       LITERT_LOG(LITERT_WARNING, "Failed to apply compiler plugins: %s",
                  result.Error().Message().c_str());
@@ -125,7 +126,7 @@ Expected<LiteRtCompiledModelT::Ptr> LiteRtCompiledModelT::Create(
   if (new_flatbuffer) {
     model_buffer = reinterpret_cast<const char*>(new_flatbuffer->Data());
     model_buffer_size = new_flatbuffer->Size();
-  } else if (auto init_model_buffer = detail::GetTflInitFlatbuffer(*model);
+  } else if (auto init_model_buffer = detail::GetTflFlatbuffer(*model).Buf();
              init_model_buffer.Size() != 0) {
     // Use the saved the original FB pointer when the LiteRtModel was created
     // from a buffer.
@@ -158,11 +159,12 @@ Expected<LiteRtCompiledModelT::Ptr> LiteRtCompiledModelT::Create(
 
   // Apply the dispatch delegate, unconditionally, since the loaded model may
   // have been compiled for NPU at AOT.
-  auto dispatch_delegate_options = litert::CreateDispatchDelegateOptionsPtr();
+  auto dispatch_delegate_options =
+      litert::CreateDispatchDelegateOptionsPtr(*env);
   LiteRtDispatchDelegateAddAllocBaseOption(dispatch_delegate_options.get(),
                                            model_buffer);
-  auto dispatch_delegate =
-      litert::CreateDispatchDelegatePtr(std::move(dispatch_delegate_options));
+  auto dispatch_delegate = litert::CreateDispatchDelegatePtr(
+      *env, std::move(dispatch_delegate_options));
   if (auto status = compiled_model->interp_->ModifyGraphWithDelegate(
           dispatch_delegate.get());
       status != kTfLiteOk) {
@@ -359,23 +361,6 @@ Expected<void> LiteRtCompiledModelT::Run(
     if (litert_output_buffer->HasEvent()) {
       return Error(kLiteRtStatusErrorInvalidArgument,
                    "Output buffers cannot have events attached");
-    }
-  }
-
-  // TODO: If input buffers have events, we wait on them before we launch the
-  // inference. This is inefficient when using HW acceleration, since in that
-  // case it would be best to make the HW accelerator wait for those events as
-  // opposed to blocking the CPU here.
-  for (auto input_buffer : input_buffers) {
-    if (input_buffer->HasEvent()) {
-      auto litert_event = input_buffer->GetEvent();
-      if (!litert_event) {
-        return litert_event.Error();
-      }
-      litert::Event event(*litert_event, /*owned=*/false);
-      if (auto status = event.Wait(/*timeout_in_ms=*/-1); !status) {
-        return status.Error();
-      }
     }
   }
 

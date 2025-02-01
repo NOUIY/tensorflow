@@ -15,7 +15,9 @@
 #include "tensorflow/lite/experimental/litert/c/litert_compiled_model_options.h"
 
 #include <gtest/gtest.h>
+#include "tensorflow/lite/experimental/litert/c/litert_accelerator_options.h"
 #include "tensorflow/lite/experimental/litert/c/litert_common.h"
+#include "tensorflow/lite/experimental/litert/core/accelerator.h"
 
 namespace {
 
@@ -37,45 +39,103 @@ TEST(LiteRtCompiledModelOptionsTest, SetAndGetHardwareAcceleratorsWorks) {
   LiteRtHwAcceleratorSet hardware_accelerators;
 
   EXPECT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                options, kLiteRtHwAccelatorNone),
+                options, kLiteRtHwAcceleratorNone),
             kLiteRtStatusOk);
   EXPECT_EQ(LiteRtGetCompilationOptionsHardwareAccelerators(
                 options, &hardware_accelerators),
             kLiteRtStatusOk);
-  EXPECT_EQ(hardware_accelerators, kLiteRtHwAccelatorNone);
+  EXPECT_EQ(hardware_accelerators, kLiteRtHwAcceleratorNone);
 
   EXPECT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                options, kLiteRtHwAccelatorCpu),
+                options, kLiteRtHwAcceleratorCpu),
             kLiteRtStatusOk);
   EXPECT_EQ(LiteRtGetCompilationOptionsHardwareAccelerators(
                 options, &hardware_accelerators),
             kLiteRtStatusOk);
-  EXPECT_EQ(hardware_accelerators, kLiteRtHwAccelatorCpu);
+  EXPECT_EQ(hardware_accelerators, kLiteRtHwAcceleratorCpu);
 
   EXPECT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                options, kLiteRtHwAccelatorGpu),
+                options, kLiteRtHwAcceleratorGpu),
             kLiteRtStatusOk);
   EXPECT_EQ(LiteRtGetCompilationOptionsHardwareAccelerators(
                 options, &hardware_accelerators),
             kLiteRtStatusOk);
-  EXPECT_EQ(hardware_accelerators, kLiteRtHwAccelatorGpu);
+  EXPECT_EQ(hardware_accelerators, kLiteRtHwAcceleratorGpu);
 
   EXPECT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                options, kLiteRtHwAccelatorNpu),
+                options, kLiteRtHwAcceleratorNpu),
             kLiteRtStatusOk);
   EXPECT_EQ(LiteRtGetCompilationOptionsHardwareAccelerators(
                 options, &hardware_accelerators),
             kLiteRtStatusOk);
-  EXPECT_EQ(hardware_accelerators, kLiteRtHwAccelatorNpu);
+  EXPECT_EQ(hardware_accelerators, kLiteRtHwAcceleratorNpu);
 
   EXPECT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                options, (kLiteRtHwAccelatorCpu | kLiteRtHwAccelatorGpu |
-                          kLiteRtHwAccelatorNpu) +
+                options, (kLiteRtHwAcceleratorCpu | kLiteRtHwAcceleratorGpu |
+                          kLiteRtHwAcceleratorNpu) +
                              1),
             kLiteRtStatusErrorInvalidArgument);
   EXPECT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                nullptr, kLiteRtHwAccelatorNone),
+                nullptr, kLiteRtHwAcceleratorNone),
             kLiteRtStatusErrorInvalidArgument);
+
+  EXPECT_EQ(LiteRtDestroyCompilationOptions(options), kLiteRtStatusOk);
+}
+
+struct DummyAccleratorCompilationOptions {
+  // This NEEDS to be the first non-static field of the structure.
+  LiteRtAcceleratorCompilationOptionsHeader link;
+
+  // Allocates and sets the basic structure for the accelerator options.
+  static LiteRtStatus Create(LiteRtAcceleratorCompilationOptions* options) {
+    if (!options) {
+      return kLiteRtStatusErrorInvalidArgument;
+    }
+    *options = reinterpret_cast<LiteRtAcceleratorCompilationOptions>(
+        new DummyAccleratorCompilationOptions());
+    LiteRtSetAcceleratorCompilationOptionsDestructor(*options, Destroy);
+    return kLiteRtStatusOk;
+  }
+
+ private:
+  // Destroys the options.
+  static void Destroy(LiteRtAcceleratorCompilationOptions options) {
+    delete reinterpret_cast<DummyAccleratorCompilationOptions*>(options);
+  }
+};
+
+TEST(LiteRtCompiledModelOptionsTest, AddAcceleratorCompilationOptionsWorks) {
+  LiteRtCompilationOptions options;
+  ASSERT_EQ(LiteRtCreateCompilationOptions(&options), kLiteRtStatusOk);
+
+  LiteRtAcceleratorCompilationOptions accelerator_options1,
+      accelerator_options2;
+  ASSERT_EQ(DummyAccleratorCompilationOptions::Create(&accelerator_options1),
+            kLiteRtStatusOk);
+  ASSERT_EQ(DummyAccleratorCompilationOptions::Create(&accelerator_options2),
+            kLiteRtStatusOk);
+
+  EXPECT_EQ(
+      LiteRtAddAcceleratorCompilationOptions(nullptr, accelerator_options1),
+      kLiteRtStatusErrorInvalidArgument);
+  EXPECT_EQ(LiteRtAddAcceleratorCompilationOptions(options, nullptr),
+            kLiteRtStatusErrorInvalidArgument);
+
+  EXPECT_EQ(
+      LiteRtAddAcceleratorCompilationOptions(options, accelerator_options1),
+      kLiteRtStatusOk);
+  EXPECT_EQ(
+      LiteRtAddAcceleratorCompilationOptions(options, accelerator_options2),
+      kLiteRtStatusOk);
+
+  LiteRtAcceleratorCompilationOptions options_it = nullptr;
+  EXPECT_EQ(LiteRtGetAcceleratorCompilationOptions(options, &options_it),
+            kLiteRtStatusOk);
+  EXPECT_EQ(options_it, accelerator_options1);
+
+  EXPECT_EQ(LiteRtGetNextAcceleratorCompilationOptions(&options_it),
+            kLiteRtStatusOk);
+  EXPECT_EQ(options_it, accelerator_options2);
 
   EXPECT_EQ(LiteRtDestroyCompilationOptions(options), kLiteRtStatusOk);
 }

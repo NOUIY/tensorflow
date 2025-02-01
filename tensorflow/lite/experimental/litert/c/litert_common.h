@@ -102,11 +102,14 @@ typedef enum {
   kLiteRtStatusErrorInvalidLegalization = 2001,
 } LiteRtStatus;
 
+// Returns a string describing the status value.
+const char* LiteRtGetStatusString(LiteRtStatus status);
+
 typedef enum : int {
-  kLiteRtHwAccelatorNone = 0,
-  kLiteRtHwAccelatorCpu = 1 << 0,
-  kLiteRtHwAccelatorGpu = 1 << 1,
-  kLiteRtHwAccelatorNpu = 1 << 2,
+  kLiteRtHwAcceleratorNone = 0,
+  kLiteRtHwAcceleratorCpu = 1 << 0,
+  kLiteRtHwAcceleratorGpu = 1 << 1,
+  kLiteRtHwAcceleratorNpu = 1 << 2,
 } LiteRtHwAccelerators;
 
 // A bit field of `LiteRtHwAccelerators` values.

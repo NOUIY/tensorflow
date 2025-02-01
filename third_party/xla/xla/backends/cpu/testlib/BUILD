@@ -23,6 +23,7 @@ cc_library(
     srcs = ["kernel_runner.cc"],
     hdrs = ["kernel_runner.h"],
     deps = [
+        "//xla/backends/cpu/codegen:ir_compiler",
         "//xla/backends/cpu/codegen:jit_compiler",
         "//xla/backends/cpu/runtime:function_library",
         "//xla/backends/cpu/runtime:kernel",
@@ -38,7 +39,9 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:ir_headers",
     ],
 )
 
@@ -103,9 +106,11 @@ tsl_pybind_extension(
         "@com_google_absl//absl/strings:string_view",
         "@nanobind",
         "@local_config_python//:python_headers",  # buildcleaner: keep
-        "//xla/backends/cpu/codegen:elemental_kernel_emitter",
+        "//xla/backends/cpu/codegen:dot_kernel_emitter",
         "//xla/backends/cpu/codegen:jit_compiler",
         "//xla/backends/cpu/codegen:target_machine_features",
+        "//xla/backends/cpu/codegen/elemental:concatenate_kernel_emitter",
+        "//xla/backends/cpu/codegen/elemental:elemental_kernel_emitter",
         "//xla/codegen:kernel_definition",
         "//xla/codegen:kernel_emitter",
         "//xla/codegen/testlib:kernel_runner",
@@ -121,6 +126,7 @@ pytype_strict_library(
     testonly = 1,
     srcs = [
         "__init__.py",
+        "utilities.py",
     ],
     srcs_version = "PY3",
     deps = [

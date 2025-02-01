@@ -138,6 +138,8 @@ cc_library(
     ]),
     hdrs = ["compilation_pipeline.h"],
     deps = [
+        "//xla/stream_executor/cuda:cuda_compute_capability",
+        "//xla/tsl/platform:statusor",
         "@com_google_absl//absl/status",
         "@llvm-project//mlir:Pass",
     ] + if_gpu_is_configured([
@@ -217,6 +219,7 @@ cc_library(
         "//xla/service/llvm_ir:llvm_util",
         "//xla/stream_executor:device_description",
         "//xla/stream_executor:launch_dim",
+        "//xla/stream_executor/gpu:tma_metadata",
         "//xla/tools:hlo_decomposer_lib",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -309,6 +312,7 @@ cc_library(
         "//xla/service/llvm_ir:llvm_util",
         "//xla/stream_executor:device_description",
         "//xla/stream_executor:launch_dim",
+        "//xla/stream_executor/gpu:tma_metadata",
         "//xla/tsl/platform:errors",
         "//xla/tsl/platform:status",
         "//xla/tsl/platform:statusor",
@@ -361,6 +365,7 @@ cc_library(
         "//xla/service/gpu/model:tiled_hlo_instruction_or_computation",
         "//xla/stream_executor:device_description",
         "//xla/stream_executor:launch_dim",
+        "//xla/stream_executor/gpu:tma_metadata",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:string_view",
@@ -606,6 +611,7 @@ xla_test(
 
 xla_test(
     name = "fusion_emitter_device_legacy_test",
+    size = "large",
     srcs = if_gpu_is_configured(["fusion_emitter_device_legacy_test.cc"]),
     # TODO(b/372714955): Fix the memory leak!
     backend_args = if_google(
@@ -623,6 +629,7 @@ xla_test(
     ],
     shard_count = 20,
     tags = [
+        "large",
         "no_mac",
     ],
     deps = [
@@ -659,6 +666,7 @@ xla_test(
 
 xla_test(
     name = "fusion_emitter_int4_device_test",
+    size = "large",
     srcs = if_gpu_is_configured(["fusion_emitter_int4_device_test.cc"]),
     # TODO(b/372714955): Fix the memory leak!
     backend_args = if_google(
@@ -675,6 +683,7 @@ xla_test(
         "gpu_amd_any",
     ],
     tags = [
+        "large",
         "no_mac",
     ],
     deps = [
@@ -893,6 +902,7 @@ xla_cc_test(
 
 xla_test(
     name = "fusion_emitter_large_test",
+    size = "large",
     srcs = if_gpu_is_configured(["fusion_emitter_large_test.cc"]),
     backends = [
         "gpu_a100",

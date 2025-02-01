@@ -28,7 +28,9 @@ limitations under the License.
 #include "nanobind/stl/tuple.h"  // IWYU pragma: keep
 #include "nanobind/stl/unique_ptr.h"  // IWYU pragma: keep
 #include "nanobind/stl/vector.h"  // IWYU pragma: keep
-#include "xla/backends/cpu/codegen/elemental_kernel_emitter.h"
+#include "xla/backends/cpu/codegen/dot_kernel_emitter.h"
+#include "xla/backends/cpu/codegen/elemental/concatenate_kernel_emitter.h"
+#include "xla/backends/cpu/codegen/elemental/elemental_kernel_emitter.h"
 #include "xla/backends/cpu/codegen/jit_compiler.h"
 #include "xla/backends/cpu/codegen/target_machine_features.h"
 #include "xla/backends/cpu/testlib/kernel_runner.h"
@@ -74,15 +76,15 @@ NB_MODULE(_extension, kernel_runner_module) {
   using NbThreadDim = std::tuple<uint64_t, uint64_t, uint64_t>;
   nb::class_<LlvmIrKernelEmitter, KernelEmitter>(kernel_runner_module,
                                                  "LlvmIrKernelEmitter")
-      .def("__init__", [](LlvmIrKernelEmitter* self, absl::string_view ir,
-                          absl::string_view kernel_name,
-                          NbThreadDim thread_dim) {
-        new (self) LlvmIrKernelEmitter(
-            ir, kernel_name,
-            se::ThreadDim{std::get<0>(thread_dim), std::get<1>(thread_dim),
-                          std::get<2>(thread_dim)},
-            {});
-      });
+      .def("__init__",
+           [](LlvmIrKernelEmitter* self, absl::string_view ir,
+              absl::string_view kernel_name, NbThreadDim thread_dim) {
+             new (self) LlvmIrKernelEmitter(
+                 ir, kernel_name,
+                 se::ThreadDim{std::get<0>(thread_dim), std::get<1>(thread_dim),
+                               std::get<2>(thread_dim)},
+                 {});
+           });
 
   nb::class_<CpuCompiler>(kernel_runner_module, "HloCompiler")
       .def(nb::init<>())
@@ -116,24 +118,39 @@ NB_MODULE(_extension, kernel_runner_module) {
 
   nb::class_<ElementalKernelEmitter, KernelEmitter>(kernel_runner_module,
                                                     "ElementalKernelEmitter")
-      .def(nb::init<const HloInstruction*>(), nb::keep_alive<1, 2>())
+      .def(nb::init<const HloInstruction*, const BufferAssignment*,
+                    const TargetMachineFeatures*>(),
+           nb::keep_alive<1, 2>(), nb::keep_alive<1, 3>(),
+           nb::keep_alive<1, 4>());
+
+  nb::class_<DotKernelEmitter, KernelEmitter>(kernel_runner_module,
+                                              "DotKernelEmitter")
+      .def(nb::init<const HloInstruction*, const BufferAssignment*,
+                    const TargetMachineFeatures*>(),
+           nb::keep_alive<1, 2>(), nb::keep_alive<1, 3>(),
+           nb::keep_alive<1, 4>());
+
+  nb::class_<ConcatenateKernelEmitter, KernelEmitter>(
+      kernel_runner_module, "ConcatenateKernelEmitter")
       .def(nb::init<const HloInstruction*, const BufferAssignment*,
                     const TargetMachineFeatures*>(),
            nb::keep_alive<1, 2>(), nb::keep_alive<1, 3>(),
            nb::keep_alive<1, 4>());
 
   nb::class_<JitCompiler>(kernel_runner_module, "JitCompiler")
-      .def(nb::new_([]() {
-        absl::StatusOr<JitCompiler> compiler =
-            KernelRunner::CreateJitCompiler();
+      .def(nb::new_([](int opt_level) {
+             absl::StatusOr<JitCompiler> compiler =
+                 KernelRunner::CreateJitCompiler(opt_level);
 
-        if (!compiler.ok()) {
-          throw std::runtime_error(std::string(compiler.status().message()));
-        }
+             if (!compiler.ok()) {
+               throw std::runtime_error(
+                   std::string(compiler.status().message()));
+             }
 
-        return std::make_unique<JitCompiler>(
-            JitCompiler(std::move(compiler).value()));
-      }))
+             return std::make_unique<JitCompiler>(
+                 JitCompiler(std::move(compiler).value()));
+           }),
+           nb::arg("opt_level") = 3)
       .def(
           "get_target_machine",
           [](JitCompiler* self) {

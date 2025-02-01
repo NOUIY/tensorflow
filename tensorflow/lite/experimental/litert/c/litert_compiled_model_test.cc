@@ -25,6 +25,7 @@
 #include "absl/types/span.h"
 #include "tensorflow/lite/experimental/litert/c/litert_common.h"
 #include "tensorflow/lite/experimental/litert/c/litert_compiled_model_options.h"
+#include "tensorflow/lite/experimental/litert/c/litert_environment.h"
 #include "tensorflow/lite/experimental/litert/c/litert_model.h"
 #include "tensorflow/lite/experimental/litert/c/litert_tensor_buffer.h"
 #include "tensorflow/lite/experimental/litert/c/litert_tensor_buffer_requirements.h"
@@ -47,13 +48,18 @@ TEST(CompiledModelTest, Basic) {
   ASSERT_EQ(LiteRtCreateCompilationOptions(&compilation_options),
             kLiteRtStatusOk);
   ASSERT_EQ(LiteRtSetCompilationOptionsHardwareAccelerators(
-                compilation_options, kLiteRtHwAccelatorCpu),
+                compilation_options, kLiteRtHwAcceleratorCpu),
+            kLiteRtStatusOk);
+
+  LiteRtEnvironment environment;
+  LiteRtEnvOption options = {};
+  ASSERT_EQ(LiteRtEnvironmentCreate(/*num_options=*/0, &options, &environment),
             kLiteRtStatusOk);
 
   LiteRtCompiledModel compiled_model;
-  ASSERT_EQ(
-      LiteRtCreateCompiledModel(model, compilation_options, &compiled_model),
-      kLiteRtStatusOk);
+  ASSERT_EQ(LiteRtCreateCompiledModel(environment, model, compilation_options,
+                                      &compiled_model),
+            kLiteRtStatusOk);
 
   LiteRtSubgraph subgraph;
   ASSERT_EQ(LiteRtGetModelSubgraph(model, 0, &subgraph), kLiteRtStatusOk);
@@ -155,6 +161,7 @@ TEST(CompiledModelTest, Basic) {
 
   LiteRtDestroyCompiledModel(compiled_model);
   LiteRtDestroyModel(model);
+  LiteRtDestroyEnvironment(environment);
 
   for (auto tensor_buffer : input_tensor_buffers) {
     LiteRtDestroyTensorBuffer(tensor_buffer);

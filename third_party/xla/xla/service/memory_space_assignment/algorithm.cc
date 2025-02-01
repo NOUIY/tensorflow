@@ -4535,17 +4535,19 @@ AllocationResult MsaAlgorithm::AllocateSegment(AllocationRequest& request) {
   // we're allowed to prefetch. If the use expects the output to be in default
   // memory, we cannot prefetch it because if we did, it would be in alternate
   // memory instead.
-  auto required_assignment_at_start = RequiredMemoryAssignmentAt(
-      request.allocation_value->value(), request.inclusive_start_time);
+  std::optional<RequiredMemoryAssignment> required_assignment_at_start =
+      RequiredMemoryAssignmentAt(request.allocation_value->value(),
+                                 request.inclusive_start_time);
   std::optional<MemorySpace> required_memory_space_at_start;
   if (required_assignment_at_start) {
     required_memory_space_at_start = required_assignment_at_start->memory_space;
   }
   // Find required assignment both for the use and its aliases. If they are both
   // non-nullopt, then make sure they require the same assignment.
-  auto required_assignment_at_end = RequiredMemoryAssignmentAt(
-      request.allocation_value_to_update->value(), request.end_time);
-  auto aliased_required_assignment_at_end =
+  std::optional<RequiredMemoryAssignment> required_assignment_at_end =
+      RequiredMemoryAssignmentAt(request.allocation_value_to_update->value(),
+                                 request.end_time);
+  std::optional<RequiredMemoryAssignment> aliased_required_assignment_at_end =
       AliasedRequiredAssignmentForUse(*request.use);
   if (required_assignment_at_end != aliased_required_assignment_at_end) {
     if (required_assignment_at_end == std::nullopt) {
@@ -5263,7 +5265,6 @@ AllocationResult MsaAlgorithm::WindowPrefetch(
 
     WindowPrefetchedAllocation::Options options;
     options.bytes = window.size();
-    options.uid = window.uid();
     options.alternate_memory_space = options_.alternate_memory_space;
     options.notify_operand_appended_fn = options_.notify_operand_appended_fn;
     AllocationRequest window_prefetch_request = request;

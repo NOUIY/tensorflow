@@ -64,9 +64,11 @@ cc_library(
         "//tensorflow/compiler/mlir/lite:model_flags_proto_cc",
         "//tensorflow/compiler/mlir/lite:types_proto_cc",
         "//tensorflow/compiler/mlir/quantization/common/quantization_lib:quantization_config",
-        "//tensorflow/compiler/mlir/tensorflow:import_model",
         "//tensorflow/compiler/mlir/tensorflow:mlir_roundtrip_flags",
         "//tensorflow/compiler/mlir/tensorflow/translate/tools:parsers",
+        "//tensorflow/compiler/mlir/tf2xla/api/v2:graph_to_tf_executor",
+        "//tensorflow/core:core_cpu_base",
+        "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
         "@com_google_absl//absl/status",
@@ -217,7 +219,7 @@ cc_library(
         "@com_google_protobuf//:protobuf",
         "@com_google_protobuf//:protobuf_headers",
         "@flatbuffers//:runtime_cc",
-        "@local_tsl//tsl/platform:status",
+        "@local_xla//xla/tsl/platform:status",
     ] + select({
         # This is required when running `tflite_convert` from `bazel`.
         # It requires to link with TensorFlow Ops to get the op definitions.

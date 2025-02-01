@@ -87,8 +87,9 @@ def _write_to_sponge_config(key, value) -> None:
 
 class BuildType(enum.Enum):
   """Enum representing all types of builds."""
-  CPU_X86 = enum.auto()
+  CPU_X86_SELF_HOSTED = enum.auto()
   CPU_ARM64 = enum.auto()
+  CPU_ARM64_SELF_HOSTED = enum.auto()
   GPU = enum.auto()
   GPU_CONTINUOUS = enum.auto()
 
@@ -157,10 +158,12 @@ class Build:
   def commands(self) -> List[List[str]]:
     """Returns list of commands for a build."""
     cmds = []
-    cmds.append([
-        f"{_KOKORO_ARTIFACTS_DIR}/github/xla/.kokoro/generate_index_html.sh",
-        "index.html",
-    ])
+
+    if "self_hosted" not in self.type_.name.lower():
+      cmds.append([
+          f"{_KOKORO_ARTIFACTS_DIR}/github/xla/.kokoro/generate_index_html.sh",
+          "index.html",
+      ])
     if self.repo != "openxla/xla":
       _, repo_name = self.repo.split("/")
 
@@ -282,10 +285,10 @@ cpu_x86_tag_filter = (
     "-requires-gpu-nvidia",
     "-requires-gpu-amd",
 )
-_CPU_X86_BUILD = Build(
-    type_=BuildType.CPU_X86,
+_CPU_X86_SELF_HOSTED_BUILD = Build(
+    type_=BuildType.CPU_X86_SELF_HOSTED,
     repo="openxla/xla",
-    image_url=_ML_BUILD_IMAGE,
+    image_url=None,
     configs=("warnings", "nonccl", "rbe_linux_cpu"),
     target_patterns=_XLA_DEFAULT_TARGET_PATTERNS,
     build_tag_filters=cpu_x86_tag_filter,
@@ -304,6 +307,16 @@ _CPU_ARM64_BUILD = Build(
     type_=BuildType.CPU_ARM64,
     repo="openxla/xla",
     image_url=_ML_BUILD_ARM64_IMAGE,
+    configs=("warnings", "rbe_cross_compile_linux_arm64", "nonccl"),
+    target_patterns=_XLA_DEFAULT_TARGET_PATTERNS,
+    options={**_DEFAULT_BAZEL_OPTIONS, "build_tests_only": True},
+    build_tag_filters=cpu_arm_tag_filter,
+    test_tag_filters=cpu_arm_tag_filter,
+)
+_CPU_ARM64_SELF_HOSTED_BUILD = Build(
+    type_=BuildType.CPU_ARM64_SELF_HOSTED,
+    repo="openxla/xla",
+    image_url=None,
     configs=("warnings", "rbe_cross_compile_linux_arm64", "nonccl"),
     target_patterns=_XLA_DEFAULT_TARGET_PATTERNS,
     options={**_DEFAULT_BAZEL_OPTIONS, "build_tests_only": True},
@@ -453,16 +466,16 @@ _TENSORFLOW_GPU_BUILD = Build(
 
 _KOKORO_JOB_NAME_TO_BUILD_MAP = {
     "tensorflow/xla/linux/arm64/build_cpu": _CPU_ARM64_BUILD,
-    "tensorflow/xla/linux/cpu/build_cpu": _CPU_X86_BUILD,
     "tensorflow/xla/linux/gpu/build_gpu": _GPU_BUILD,
     "tensorflow/xla/linux/github_continuous/arm64/build_cpu": _CPU_ARM64_BUILD,
     "tensorflow/xla/linux/github_continuous/build_gpu": _GPU_BUILD,
-    "tensorflow/xla/linux/github_continuous/build_cpu": _CPU_X86_BUILD,
     "tensorflow/xla/macos/github_continuous/cpu_py39_full": _MACOS_X86_BUILD,
     "tensorflow/xla/jax/cpu/build_cpu": _JAX_CPU_BUILD,
     "tensorflow/xla/jax/gpu/build_gpu": _JAX_GPU_BUILD,
     "tensorflow/xla/tensorflow/cpu/build_cpu": _TENSORFLOW_CPU_BUILD,
     "tensorflow/xla/tensorflow/gpu/build_gpu": _TENSORFLOW_GPU_BUILD,
+    "xla-linux-x86-cpu": _CPU_X86_SELF_HOSTED_BUILD,
+    "xla-linux-arm64-cpu": _CPU_ARM64_SELF_HOSTED_BUILD,
 }
 
 
@@ -488,7 +501,8 @@ def main():
     return
 
   build = _KOKORO_JOB_NAME_TO_BUILD_MAP[kokoro_job_name]
-
+  logging.info("build.type_: %s", build.type_)
+  logging.info("build.commands(): %s", build.commands())
   for cmd in build.commands():
     sh(cmd)
 
