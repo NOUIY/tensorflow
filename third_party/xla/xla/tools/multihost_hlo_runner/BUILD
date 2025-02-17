@@ -37,6 +37,7 @@ cc_library(
         ":functional_hlo_runner",
         "//xla:debug_options_flags",
         "//xla:status_macros",
+        "//xla:xla_data_proto_cc",
         "//xla/pjrt:pjrt_client",
         "//xla/pjrt/distributed",
         "//xla/pjrt/distributed:client",
@@ -60,6 +61,8 @@ cc_library(
         "@local_tsl//tsl/platform:statusor",
     ] + if_cuda_or_rocm([
         "//xla/service:gpu_plugin",
+        "//xla/backends/profiler/gpu:cupti_tracer",
+        "//xla/backends/profiler/gpu:device_tracer",
     ]) + if_cuda([
         "//xla/stream_executor:cuda_platform",
     ] + if_google(
@@ -160,6 +163,7 @@ cc_library(
         "//xla/service:computation_placer_hdr",
         "//xla/service:hlo_module_config",
         "//xla/service:hlo_proto_cc",
+        "//xla/service:hlo_runner_interface",
         "//xla/tests:test_utils",
         "//xla/tools:hlo_control_flow_flattening",
         "//xla/tsl/platform:env",
@@ -186,6 +190,7 @@ cc_library(
         "@local_tsl//tsl/profiler/lib:profiler_factory_impl",
         "@local_tsl//tsl/profiler/lib:profiler_session",
         "@local_tsl//tsl/profiler/lib:profiler_session_impl",
+        "@local_tsl//tsl/profiler/protobuf:profiler_options_proto_cc",
         "@local_tsl//tsl/profiler/protobuf:xplane_proto_cc",
     ],
 )
