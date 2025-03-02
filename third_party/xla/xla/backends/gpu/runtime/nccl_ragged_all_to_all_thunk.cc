@@ -21,12 +21,14 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
 #include "absl/synchronization/mutex.h"
 #include "xla/backends/gpu/collectives/gpu_clique_key.h"
 #include "xla/backends/gpu/collectives/gpu_collectives.h"
@@ -289,7 +291,8 @@ NcclRaggedAllToAllStartThunk::NcclRaggedAllToAllStartThunk(
     ThunkInfo thunk_info, const HloRaggedAllToAllInstruction* instr,
     std::vector<NcclCollectiveThunk::Buffer> buffers, bool p2p_memcpy_enabled)
     : NcclCollectiveThunk(Thunk::kNcclRaggedAllToAllStart, thunk_info,
-                          IsGPUSyncCollective(*instr)),
+                          IsGPUSyncCollective(*instr),
+                          AsyncStreamKind::kCollective),
       config_(GetNcclRaggedAllToAllConfig(instr)),
       buffers_(std::move(buffers)),
       p2p_memcpy_enabled_(p2p_memcpy_enabled) {
@@ -304,6 +307,14 @@ NcclRaggedAllToAllStartThunk::NcclRaggedAllToAllStartThunk(
       Shape shape = operand->shape();
       TF_RETURN_IF_ERROR(IsValidOperand(shape, Thunk::kNcclRaggedAllToAll));
     }
+
+    if (!ShapeUtil::IsEffectivelyMostMajorDimension(instr->shape(), 0)) {
+      return absl::UnimplementedError(absl::Substitute(
+          "ragged-all-to-all must have the ragged dimension (0) in the most "
+          "major position in the layout $0.",
+          instr->shape().layout().ToString()));
+    }
+
     return absl::OkStatus();
   };
   return AddOpDescription<NcclRaggedAllToAllStartThunk>(
